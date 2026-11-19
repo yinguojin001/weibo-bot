@@ -12,7 +12,7 @@ async function main() {
   const { normalizeUids, normalizeScheduleTimes, publicSettings } = await import('../lib/settings.js')
   const { judgePost } = await import('../lib/judge.js')
   const { parseWeiboTime } = await import('../lib/weibo.js')
-  const { groupPostsByUnit, scanNestedReplies } = await import('../lib/index.js')
+  const { groupPostsByUnit, scanNestedReplies } = await import('../lib/core.js')
 
   assert.deepEqual(parseCookie('SUB=abc; XSRF-TOKEN=x%2Fy'), { SUB: 'abc', 'XSRF-TOKEN': 'x%2Fy' })
   assert.equal(stripHtml('<p>你好<br/>微博</p>&amp;'), '你好\n微博&')
@@ -187,9 +187,9 @@ async function main() {
     throw new Error(`unexpected fetch ${target}`)
   }
   const state = { postSeen: {}, commentSeen: {}, debug: [] }
-  const ctx = {
-    get: () => ({ record: async () => ({ ok: true }), context: async () => '' }),
-    logger: { info() {}, warn() {} },
+  const runtime = {
+    memory: { record: async () => ({ ok: true }), context: async () => '' },
+    log: () => {},
   }
   const nestedConfig = {
     cookie: 'SUB=x; XSRF-TOKEN=t',
@@ -216,10 +216,9 @@ async function main() {
     },
   ]
   const dry = await scanNestedReplies(
-    ctx,
     nestedConfig,
     state,
-    () => {},
+    runtime,
     postsWithNested,
     '7',
     '',
@@ -231,10 +230,9 @@ async function main() {
   assert.deepEqual(state.commentSeen, {})
 
   const actualReply = await scanNestedReplies(
-    ctx,
     nestedConfig,
     state,
-    () => {},
+    runtime,
     postsWithNested,
     '7',
     '',
