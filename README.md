@@ -1,135 +1,186 @@
-# dsh-foxy-weibo
+# foxy-weibo（OpenCode 插件）
 
-Foxy 的微博子插件：按预设关注微博账号、阅读博文、判断是否评论或记录，并通过 `foxyMemory` 写入微博事件。
+Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评论、回复楼中楼，并把读到的内容整理成本地长期记忆。
 
-> 运行于 DSH。它依赖 `dsh-foxy`（人设）和可选的 `dsh-foxy-memory`（记忆）。
+这是 OpenCode V2 插件（server + RPC + Desktop 设置页），不再是 DSH/Cordis 插件：
 
-## 依赖关系
-
-- 必需：`dsh-foxy`。
-- 记忆：`dsh-foxy-memory`；跨平台落库时可连接 `koishi-plugin-chatluna-foxy-memory`，微博事件通过 `foxyMemory` provider 写入。
-- QQ 侧记忆由 Koishi 插件管理，本插件不直接读写 Koishi 数据库。
+- 不依赖 `dsh-foxy`、`foxyMemory` 或 `preset.yml`；
+- 默认复用 OpenCode 当前选中的模型，不需要单独的 API Key；
+- 记忆保存在本机 JSONL 文件里，可由 `weibo_memory` 工具检索；
+- 定时任务在 OpenCode 服务运行期间执行。
 
 ## 功能
 
-- **阅读目标账号博文**：按设定时间阅读监控账号的博文，每篇写入一条“目标账号博文”记忆，按博文 ID 去重；
-- 可选对博文发表一级评论；可设置评论起始时间（`replyAfter`），只评论该时间之后的博文；
-- 评论前按预设判断 `skip / comment`，不设最少字数，最多 80 字；
-- 可读取 Foxy 已有记忆作为判断上下文；支持回复博文下针对 Foxy 评论的楼中楼（含接口未内联返回时按评论 cid 拉取子评论）；
-- 自检去重：已评论/已跳过的博文写入 `postSeen`，不会重复评论同一篇；运行前还会检查博文下是否已有本账号评论，避免 state 重置后重复评论；
-- 跨进程状态锁：同一 `DSH_HOME` 下多个 DSH 实例不会同时扫描并互相覆盖 `state.json`；
-- 阅读、评论事件写入 Foxy 记忆，字段包含 `platform: weibo`、`channelType: weibo_post`、`eventType: weibo_owner_post|weibo_comment`；博文记忆由预设提炼为 1–2 句，日期只到天，不保存全文、图片地址或博文链接；
-- 回复楼中楼使用 `POST https://weibo.com/ajax/comments/reply`（`id` + `cid` + `comment`），并带 `without_mention=1`，避免额外 @；
-- **快速提取记忆**：一次性读取监控账号的全部往期博文，按自然周/月/年分组；每组调用模型整合为一条阶段记忆，重要事件保留日期与细节，并在正文标注时间段；同一分组不会重复写入；
-- 设置页提供扫码登录、Cookie 备用、监控账号 UID、模型、每日时间、评论模式、评论起始时间、楼中楼回复开关、记忆开关、调试日志，以及「立即检查博文 / 立即读取博文 / 立即回复」。
+- **阅读目标账号博文**：按每日时间检查监控账号的博文，每篇写入一条“目标账号博文”记忆，按博文 ID 去重；
+- **评论**：可选对博文发表一级评论；可设置评论起始时间，只评论该时间之后的博文；
+- **判断**：由模型输出 `skip / remember / comment`，不设最少字数，最多 80 字；
+- **楼中楼回复**：读取针对 Foxy 自己评论的新回复并回复，按评论 `cid` 去重；
+- **自检去重**：已评论/已跳过的博文写入 `postSeen`；评论前还会检查博文下是否已有本账号评论；
+- **状态锁**：同一数据目录下多个 OpenCode 实例不会同时扫描并互相覆盖 `state.json`；
+- **快速提取记忆**：读取全部往期博文，按自然周/月/年分组，每组整合为一条阶段记忆；
+- **Desktop 设置页**：扫码登录、Cookie 备用、监控账号 UID、模型、每日时间、评论模式、记忆开关、调试日志，以及「立即检查 / 立即读取 / 立即回复」。
 
 ## 安装
 
-```powershell
-dsh plugin --profile desktop add file:D:\Documents\deepseek-harness\default-workspace\dsh-foxy-weibo
+把插件目录加到全局或项目 `opencode.json(c)` 的 `plugins` 里：
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    "/Users/you/Documents/github_weibo_bot/dsh-foxy-weibo"
+  ]
+}
 ```
 
-安装后完整重启 DSH。入口在 **Foxy → 微博**，设置页也会出现同名条目。
+也可以写成对象形式传默认配置：
 
-## 配置
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "/Users/you/Documents/github_weibo_bot/dsh-foxy-weibo",
+      "options": {
+        "targetUid": "1234567890",
+        "scheduleTimes": ["20:00"]
+      }
+    }
+  ]
+}
+```
 
-判断提示词可通过设置页的「判断提示词（附加）」追加到内置提示词后；留空使用内置。自定义要求不会改变 JSON 输出格式。
+保存配置后 OpenCode 会重新加载插件的 server 部分，不需要重启。Desktop 的设置页入口在 **Settings → 微博**；如果新装后没有出现，重启一次 OpenCode Desktop 让窗口加载 GUI bundle。
 
-### 扫码登录
+> `options` 只提供默认值；设置页保存的 `settings.json` 优先级更高。
 
-设置页点「扫码登录」，用微博 App 扫码确认即可。插件会：
+## 插件结构
+
+| 部分 | 文件 | 说明 |
+| --- | --- | --- |
+| server | `lib/index.js` | `Plugin.define`，注册工具、定时任务、RPC |
+| RPC | `lib/rpc.js` | `Rpc.define` 契约，Desktop 设置页调用 |
+| GUI | `lib/gui.cjs` | `./gui-experimental`，预构建 CommonJS，渲染设置页 |
+| 业务逻辑 | `lib/core.js` | 扫描、判断、评论、提取记忆 |
+| 微博接口 | `lib/weibo.js` / `lib/login.js` | 时间线、评论、扫码登录 |
+
+## 工具
+
+插件注册在 `weibo` 命名空间下，可在 Code Mode 中直接调用：
+
+| 工具 | 说明 |
+| --- | --- |
+| `weibo_status` | 登录状态、今日评论数、上次运行结果、最近记录 |
+| `weibo_check` | 只检查博文，不写记忆、不评论 |
+| `weibo_read` | 读取博文并写入本地记忆 |
+| `weibo_comment` | 对博文发表一级评论（会请求权限） |
+| `weibo_reply` | 回复 Foxy 评论下的楼中楼（会请求权限） |
+| `weibo_extract` | 后台执行全量记忆提取 |
+| `weibo_memory` | 搜索插件写入的微博记忆 |
+
+`weibo_comment` 和 `weibo_reply` 在真实发布前会调用 `ctx.permission.assert`，权限动作是 `weibo.comment`。
+
+## AI 模型
+
+默认 `llmMode: "opencode"`，使用 OpenCode 当前选中的模型：
+
+1. 优先 `ctx.experimental.generate.text`（不创建会话）；
+2. 旧版本回退到 `ctx.session.generate`（创建一个名为「微博判断」的会话）。
+
+如果当前版本不支持复用模型，可以切换到直连模式：
+
+- `llmMode: "direct"`
+- `llmBaseUrl`：例如 `https://api.deepseek.com`
+- `llmModel`：例如 `deepseek-chat`
+- `llmApiKey`：只保存在本机
+
+直连模式失败时，如果配置了 API Key，也会自动回退到直连。
+
+系统提示词来自设置页的「人设」；留空使用内置 Foxy 人设。不再读取 `~/.dsh/foxy/presets`。
+
+## 扫码登录
+
+设置页点「扫码登录」，用微博 App 扫码确认：
 
 1. 获取 `login.sina.com.cn` 的二维码；
-2. 轮询扫码状态；
+2. 每 2 秒轮询扫码状态；
 3. 登录成功后合并 `SUB/SUBP/XSRF-TOKEN` 等 Set-Cookie；
 4. 自动填写账号 UID，并把 Cookie 保存到本机。
 
-二维码过期时点「刷新二维码」。也可以继续手动填 Cookie 作为备用。
+二维码过期时点「刷新二维码」。也可以手动填 Cookie 作为备用。
 
-### 微博 Cookie
+## 数据位置
 
-读取公开时间线在部分网络环境会触发微博风控（HTTP 432），因此建议登录：
+默认在 OpenCode 配置目录下：
 
-- `SUB`
-- `SUBP`
-- `XSRF-TOKEN`
+```
+~/.config/opencode/foxy-weibo/
+├── settings.json   # 设置、Cookie、API Key
+├── state.json      # 已读博文、已回复评论、运行记录
+└── memory.jsonl    # 长期记忆（每行一条 JSON）
+```
 
-Cookie 只保存在本机 `~/.dsh/foxy-weibo/settings.json`，不会回传给前端。插件优先使用 `m.weibo.cn`，失败时用 `weibo.com/ajax/statuses/mymblog` 作为备用接口。
+可用环境变量覆盖：
 
-### 监控账号 UID
+- `OPENCODE_CONFIG_DIR`：OpenCode 配置目录；
+- `XDG_CONFIG_HOME`：标准 XDG 配置目录；
+- `OPENCODE_WEIBO_HOME`：直接指定插件数据目录。
 
-`监控账号 UID` 是被阅读、被评论的目标账号（通常是主人账号）；`当前账号` 是扫码登录的机器人账号，两者可以不同。插件不会把登录的机器人账号当成监控账号。
+首次加载时，如果 `settings.json` 不存在，会尝试读取旧的 `~/.dsh/foxy-weibo/settings.json` 并迁移。
 
-UID 是微博用户主页 URL 里的数字 ID，例如 `https://weibo.com/u/1234567890`。
+Cookie 和 API Key 只保存在本机，`weibo_status` 和设置页只返回 `cookieSet` / `llmApiKeySet` 布尔值。
 
-### AI 模型
+## 记忆
 
-插件不经过 DSH 内置 agent，直接调用 OpenAI 兼容的 `/chat/completions`：
+OpenCode 没有 `foxyMemory` provider，插件改用本地 JSONL：
 
-- Base URL：例如 `https://api.deepseek.com`
-- 模型名：例如 `deepseek-chat`
-- API Key：只保存在本机
+- 阅读博文：`weibo_owner_post`
+- 评论博文：`weibo_comment`
+- 回复楼中楼：`weibo_reply`
+- 阶段回顾：`weibo_digest`
 
-系统提示词来自 `~/.dsh/foxy/presets/preset.yml` 的 `persona` 字段。
+每条记录包含 `at`、`text`、`eventType`、`channelId`、`url` 等字段。判断时会读取最近 8 条作为上下文；`weibo_memory` 可以按关键词搜索。
 
-### 快速提取记忆
+## 快速提取记忆
 
-设置页「快速提取记忆」用于把全部历史博文一次性整理成长期记忆：
+设置页「快速提取记忆」把全部历史博文一次性整理成长期记忆：
 
-- 分组单位：按周、按月或按年；每一组只写入一条阶段记忆；
-- 读取范围：监控账号的全部可见博文（不是只取最近一个时间段）；
-- 每组内容：阶段总结 + 最多 5 条重要事件；重要事件会保留日期、标题和细节；
-- 记忆正文以 `我在微博回顾了 YYYY-MM-DD 至 YYYY-MM-DD 的博文：...` 开头，召回时能看出时间段；
-- 提取只读博文，不评论；任务在后台运行，设置页会显示当前分组与进度；
-- 同一分组已完成后不会重复写入；需要重新生成时需更换分组单位或清理 `state.digests`。
+- 分组单位：按周、按月或按年；每组只写入一条阶段记忆；
+- 读取范围：监控账号的全部可见博文；
+- 每组内容：阶段总结 + 最多 5 条重要事件；
+- 记忆正文以 `我在微博回顾了 YYYY-MM-DD 至 YYYY-MM-DD 的博文：...` 开头；
+- 提取只读博文，不评论；任务在后台运行，设置页显示当前分组与进度；
+- 同一分组完成后不会重复写入；需要重新生成时需更换分组单位或清理 `state.digests`。
 
 提取提示词可在同一卡片中追加，不会改变 JSON 输出契约。
 
 ## 建议顺序
 
 1. 扫码登录，填监控账号 UID，`enabled: true`、`replyMode: off`；
-2. 设置每日检查时间，或先点「立即检查博文」，只拉取博文列表、不写记忆、不评论；
-3. 点「立即读取博文」把未读博文写入 Foxy 记忆，按博文 ID 去重；
+2. 设置每日检查时间，或先点「立即检查博文」；
+3. 点「立即读取博文」把未读博文写入记忆；
 4. 确认判断正常后，再开启 `replyMode: auto`，每日上限先设为 1；
 5. 「立即回复」会真实评论一篇，适合测试；「回复楼中楼」只处理针对 Foxy 评论的新回复；
-6. 评论有账号风控，不要高频；阅读往期博文会写入记忆，但按博文 ID 去重。
-
-## 记忆事件
-
-微博插件写入的示例：
-
-- 阅读目标博文：`我看到 <博主> 发了一条微博：「...」`
-- 评论博文：`我在微博评论了 <博主> 的博文「...」：...`
-
-事件字段：
-
-```json
-{
-  "platform": "weibo",
-  "channelType": "weibo_post",
-  "channelId": "<post id>",
-  "eventType": "weibo_browse",
-  "sourceLabel": "微博",
-  "scene": "weibo"
-}
-```
+6. 评论有账号风控，不要高频。
 
 ## 限制
 
 - 微博没有稳定的官方开放评论 API；Cookie 过期、风控或接口变更会导致读取/评论失败；
 - 读取评论使用热门评论接口，可能不是全量；
-- 评论是否显示受微博审核影响，插件只能提交，不能保证公开可见；
-- 当前只做关注用户的时间线，不做搜索/超话/转发；
-- 自动评论默认关闭。
+- 定时任务依赖 OpenCode 服务进程；服务停止时不会运行；
+- 设置页属于 OpenCode Desktop 的实验性 GUI API，仅 Desktop 可用；CLI/TUI 仍可使用工具和 RPC。
 
 ## 开发
 
-```powershell
-node --check lib/index.js
-node test/test-weibo.cjs
-node test/test-client.cjs
+```bash
+cd dsh-foxy-weibo
+npm test        # 微博接口、核心逻辑、GUI 冒烟测试
+npm run check   # node --check 语法检查
 ```
 
-## License
+本地调试时，把插件目录写进 `opencode.json` 后运行：
 
-MIT
+```bash
+opencode serve --port 4599
+```
+
+服务日志在 `~/.local/share/opencode/log/opencode.log`，筛选 `foxy-weibo` 可看到加载与运行记录。
