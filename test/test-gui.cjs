@@ -106,6 +106,7 @@ globalThis.document = {
 }
 globalThis.window = { confirm: () => true }
 
+const cleanups = []
 const stub = (id) => {
   if (id === '@opencode/plugin/gui') {
     return {
@@ -117,7 +118,11 @@ const stub = (id) => {
     return { Rpc: { define: (definition) => definition } }
   }
   if (id === 'solid-js') {
-    return { onCleanup: () => {} }
+    return {
+      onCleanup: (fn) => {
+        cleanups.push(fn)
+      },
+    }
   }
   return undefined
 }
@@ -174,17 +179,30 @@ async function main() {
     rpc(contract) {
       assert.equal(contract.id, 'foxy-weibo')
       return {
-        status: async () => {
-          calls.push(['status'])
+        status: async (input) => {
+          calls.push(['status', input])
+          assert.deepEqual(input, {}, 'status must pass an input object')
           return { ok: true, status, settings }
         },
         update: async (input) => {
           calls.push(['update', input])
           return { ok: true, status, settings }
         },
-        loginStart: async () => ({ ok: true, qrid: 'q1', qr: 'data:image/png;base64,AA' }),
-        loginPoll: async () => ({ ok: true, state: 'waiting' }),
-        logout: async () => ({ ok: true, status, settings }),
+        loginStart: async (input) => {
+          calls.push(['loginStart', input])
+          assert.deepEqual(input, {}, 'loginStart must pass an input object')
+          return { ok: true, qrid: 'q1', qr: 'data:image/png;base64,AA' }
+        },
+        loginPoll: async (input) => {
+          calls.push(['loginPoll', input])
+          assert.deepEqual(input, { qrid: 'q1' })
+          return { ok: true, state: 'waiting' }
+        },
+        logout: async (input) => {
+          calls.push(['logout', input])
+          assert.deepEqual(input, {}, 'logout must pass an input object')
+          return { ok: true, status, settings }
+        },
         run: async (input) => {
           calls.push(['run', input])
           return { ok: true, result: { posts: 1, memories: 1 }, status }
@@ -216,7 +234,7 @@ async function main() {
   assert.match(node.text(), /正在读取微博设置/)
 
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.deepEqual(calls[0], ['status'])
+  assert.deepEqual(calls[0], ['status', {}])
   const text = node.text()
   assert.match(text, /微博评论/)
   assert.match(text, /自动浏览已开启/)
@@ -233,6 +251,13 @@ async function main() {
   assert.equal(update[1].patch.targetUid, '1234567')
   assert.equal(update[1].patch.scheduleTimes, '08:30, 20:00')
 
+  const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
+  assert.ok(loginButton, 'login button rendered')
+  loginButton.listeners.click()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(calls.find((call) => call[0] === 'loginStart'), ['loginStart', {}])
+  assert.deepEqual(calls.find((call) => call[0] === 'loginPoll'), ['loginPoll', { qrid: 'q1' }])
+
   const checkButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '立即检查博文')[0]
   assert.ok(checkButton, 'check button rendered')
   await checkButton.listeners.click()
@@ -240,6 +265,7 @@ async function main() {
 
   assert.equal(typeof cleanup, 'function')
   cleanup()
+  for (const dispose of cleanups) dispose()
 
   console.log('foxy-weibo gui tests passed')
 }
