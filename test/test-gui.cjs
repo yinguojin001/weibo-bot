@@ -62,6 +62,10 @@ class FakeNode {
     this.attributes[name] = String(value)
   }
 
+  removeAttribute(name) {
+    delete this.attributes[name]
+  }
+
   addEventListener(name, listener) {
     this.listeners[name] = listener
   }
@@ -242,6 +246,18 @@ async function main() {
     node.find((item) => item.tagName === 'INPUT' && item.value === '1234567'),
     'target UID input is filled',
   )
+  for (const label of ['保存设置', '扫码登录', '立即检查博文']) {
+    const button = node.find((item) => item.tagName === 'BUTTON' && item.text() === label)
+    assert.ok(button, `${label} button rendered`)
+    assert.equal('disabled' in button.attributes, false, `${label} button must be enabled when idle`)
+  }
+  for (const select of node.findAll((item) => item.tagName === 'SELECT')) {
+    assert.equal(
+      select.findAll((item) => item.tagName === 'OPTION' && 'selected' in item.attributes).length,
+      1,
+      'each select has exactly one selected option',
+    )
+  }
 
   const saveButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '保存设置')[0]
   assert.ok(saveButton, 'save button rendered')
