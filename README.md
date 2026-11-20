@@ -81,7 +81,12 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 
 ## AI 模型
 
-默认 `llmMode: "opencode"`，使用 OpenCode 当前选中的模型：
+默认 `llmMode: "opencode"`，通过 OpenCode 调用模型：
+
+- `model`：例如 `deepseek/deepseek-flash`，在设置页「使用的模型」下拉框中选择；
+- 留空时使用 `ctx.model.default()`，即 OpenCode 的**默认模型**。默认模型可能是免费模型，会有每日额度限制（报错 `Free usage limit reached`），此时请显式选择一个可用模型。
+
+调用顺序：
 
 1. 优先 `ctx.experimental.generate.text`（不创建会话）；
 2. 旧版本回退到 `ctx.session.generate`（创建一个名为「微博判断」的会话）。

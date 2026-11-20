@@ -188,6 +188,14 @@ async function main() {
           assert.deepEqual(input, {}, 'status must pass an input object')
           return { ok: true, status, settings }
         },
+        models: async (input) => {
+          calls.push(['models', input])
+          assert.deepEqual(input, {}, 'models must pass an input object')
+          return {
+            ok: true,
+            models: [{ id: 'deepseek/deepseek-flash', name: 'DeepSeek V4.1 Flash', provider: 'deepseek' }],
+          }
+        },
         update: async (input) => {
           calls.push(['update', input])
           return { ok: true, status, settings }
@@ -238,7 +246,10 @@ async function main() {
   assert.match(node.text(), /正在读取微博设置/)
 
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.deepEqual(calls[0], ['status', {}])
+  assert.ok(
+    calls.some((call) => call[0] === 'status' && JSON.stringify(call[1]) === '{}'),
+    'status called with an input object',
+  )
   const text = node.text()
   assert.match(text, /微博评论/)
   assert.match(text, /自动浏览已开启/)
@@ -266,6 +277,14 @@ async function main() {
   assert.ok(update, 'update called')
   assert.equal(update[1].patch.targetUid, '1234567')
   assert.equal(update[1].patch.scheduleTimes, '08:30, 20:00')
+  const modelSelect = node
+    .findAll((item) => item.tagName === 'SELECT')
+    .find((select) =>
+      select
+        .findAll((item) => item.tagName === 'OPTION')
+        .some((option) => option.value === 'deepseek/deepseek-flash'),
+    )
+  assert.ok(modelSelect, 'model select lists OpenCode models')
 
   // Editing a control schedules a quiet save, so a refresh keeps the change.
   const unitSelect = node
@@ -277,9 +296,13 @@ async function main() {
   unitSelect.value = 'year'
   unitSelect.listeners.change?.({ target: unitSelect })
   node.listeners.change?.({ target: unitSelect })
+  modelSelect.value = 'deepseek/deepseek-flash'
+  modelSelect.listeners.change?.({ target: modelSelect })
+  node.listeners.change?.({ target: modelSelect })
   await new Promise((resolve) => setTimeout(resolve, 700))
   const autoSave = calls.filter((call) => call[0] === 'update').at(-1)
   assert.equal(autoSave[1].patch.extractUnit, 'year', 'changes are saved without pressing the button')
+  assert.equal(autoSave[1].patch.model, 'deepseek/deepseek-flash', 'selected model is saved')
 
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
