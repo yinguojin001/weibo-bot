@@ -10,6 +10,7 @@ async function main() {
 
   assert.equal(cleanGeneratedPost('```text\n正文\n```'), '正文')
   assert.equal(cleanGeneratedPost('微博正文：今天天气不错'), '今天天气不错')
+  assert.equal(cleanGeneratedPost('字'.repeat(500)).length, 400)
 
   const generated = await generatePostText(
     { persona: '' },

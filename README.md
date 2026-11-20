@@ -112,7 +112,7 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 - `postTimes`：每日发布时间，`HH:MM`，多个用逗号分隔，最多 6 个；
 - `postPrompt`：发博关键词 / 要求，例如 `整理24小时以内全球新闻TOP10，每条一句话`。
 
-到点后插件调用当前选择的模型生成正文（只输出正文，最多 2000 字），再通过 `weibo.com/ajax/statuses/update` 发布；失败时回退到 `m.weibo.cn` 接口。发布记录写入 `state.json` 的 `lastPost` 和 `history`。
+到点后插件调用当前选择的模型生成正文（只输出正文，400 字以内），再通过 `weibo.com/ajax/statuses/update` 发布；失败时回退到 `m.weibo.cn` 接口。发布记录写入 `state.json` 的 `lastPost` 和 `history`。
 
 注意：模型本身不能联网，新闻类内容可能过时或需要核对；发布前建议先用「立即发博」确认效果。
 
