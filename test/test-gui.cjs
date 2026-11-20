@@ -267,6 +267,20 @@ async function main() {
   assert.equal(update[1].patch.targetUid, '1234567')
   assert.equal(update[1].patch.scheduleTimes, '08:30, 20:00')
 
+  // Editing a control schedules a quiet save, so a refresh keeps the change.
+  const unitSelect = node
+    .findAll((item) => item.tagName === 'SELECT')
+    .find((select) =>
+      select.findAll((item) => item.tagName === 'OPTION').some((option) => option.value === 'year'),
+    )
+  assert.ok(unitSelect, 'extract unit select rendered')
+  unitSelect.value = 'year'
+  unitSelect.listeners.change?.({ target: unitSelect })
+  node.listeners.change?.({ target: unitSelect })
+  await new Promise((resolve) => setTimeout(resolve, 700))
+  const autoSave = calls.filter((call) => call[0] === 'update').at(-1)
+  assert.equal(autoSave[1].patch.extractUnit, 'year', 'changes are saved without pressing the button')
+
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
   loginButton.listeners.click()

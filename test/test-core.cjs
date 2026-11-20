@@ -18,6 +18,9 @@ async function main() {
   assert.equal(settings.normalizePatch({}, { llmMode: 'direct' }).llmMode, 'direct')
   assert.equal(settings.normalizePatch({}, { persona: '  自定义人设  ' }).persona, '自定义人设')
   assert.equal(settings.normalizePatch({}, { llmMode: 'weird' }).llmMode, 'opencode')
+  assert.equal(settings.normalizePatch({}, { extractUnit: 'week' }).extractUnit, 'week')
+  assert.equal(settings.normalizePatch({}, { extractUnit: 'year' }).extractUnit, 'year')
+  assert.equal(settings.normalizePatch({}, { extractUnit: 'nope' }).extractUnit, 'month')
 
   const saved = settings.saveSettings({
     ...settings.DEFAULTS,
