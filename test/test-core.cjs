@@ -21,6 +21,14 @@ async function main() {
   assert.equal(settings.normalizePatch({}, { extractUnit: 'week' }).extractUnit, 'week')
   assert.equal(settings.normalizePatch({}, { extractUnit: 'year' }).extractUnit, 'year')
   assert.equal(settings.normalizePatch({}, { extractUnit: 'nope' }).extractUnit, 'month')
+  assert.equal(settings.normalizePatch({}, {}).postEnabled, false)
+  assert.equal(settings.normalizePatch({}, { postEnabled: true }).postEnabled, true)
+  assert.deepEqual(settings.normalizePatch({}, { postTimes: '08:00, 21:30' }).postTimes, ['08:00', '21:30'])
+  assert.deepEqual(settings.normalizePatch({}, { postTimes: '25:00' }).postTimes, [])
+  assert.equal(
+    settings.normalizePatch({}, { postPrompt: '  整理新闻  ' }).postPrompt,
+    '整理新闻',
+  )
 
   const saved = settings.saveSettings({
     ...settings.DEFAULTS,

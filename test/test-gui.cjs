@@ -147,6 +147,9 @@ async function main() {
     enabled: true,
     targetUid: '1234567',
     scheduleTimes: ['08:30', '20:00'],
+    postEnabled: true,
+    postTimes: ['08:00'],
+    postPrompt: '整理24小时以内全球新闻TOP10',
     replyMode: 'off',
     replyAfter: '',
     replyNested: true,
@@ -178,6 +181,8 @@ async function main() {
     recent: [],
     debug: [],
     extracting: false,
+    nextPostAt: Date.now() + 3600_000,
+    lastPost: null,
   }
   const client = {
     rpc(contract) {
@@ -238,7 +243,7 @@ async function main() {
   const page = added[0].item
   assert.equal(page.id, 'foxy-weibo')
   assert.equal(page.title, '微博')
-  assert.equal(page.entries.length, 4)
+  assert.equal(page.entries.length, 5)
   assert.equal(page.entries[0].id, 'account')
 
   const node = page.render({})
@@ -299,10 +304,23 @@ async function main() {
   modelSelect.value = 'deepseek/deepseek-flash'
   modelSelect.listeners.change?.({ target: modelSelect })
   node.listeners.change?.({ target: modelSelect })
+  const postPrompt = node.find(
+    (item) => item.tagName === 'TEXTAREA' && item.attributes.placeholder === '整理24小时以内全球新闻TOP10',
+  )
+  assert.ok(postPrompt, 'post prompt textarea rendered')
+  postPrompt.value = '整理24小时以内全球新闻TOP10，每条一句话'
+  postPrompt.listeners.input?.({ target: postPrompt })
+  node.listeners.input?.({ target: postPrompt })
   await new Promise((resolve) => setTimeout(resolve, 700))
   const autoSave = calls.filter((call) => call[0] === 'update').at(-1)
   assert.equal(autoSave[1].patch.extractUnit, 'year', 'changes are saved without pressing the button')
   assert.equal(autoSave[1].patch.model, 'deepseek/deepseek-flash', 'selected model is saved')
+  assert.equal(
+    autoSave[1].patch.postPrompt,
+    '整理24小时以内全球新闻TOP10，每条一句话',
+    'post prompt is saved',
+  )
+  assert.equal(autoSave[1].patch.postEnabled, true, 'post toggle is saved')
 
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
@@ -315,6 +333,14 @@ async function main() {
   assert.ok(checkButton, 'check button rendered')
   await checkButton.listeners.click()
   assert.deepEqual(calls.find((call) => call[0] === 'run')[1], { mode: 'check' })
+
+  const postButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '立即发博')[0]
+  assert.ok(postButton, 'post button rendered')
+  await postButton.listeners.click()
+  assert.deepEqual(
+    calls.find((call) => call[0] === 'run' && call[1].mode === 'post')[1],
+    { mode: 'post' },
+  )
 
   assert.equal(typeof cleanup, 'function')
   cleanup()
