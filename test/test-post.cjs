@@ -1,12 +1,17 @@
 const assert = require('node:assert/strict')
+const { mkdtempSync } = require('node:fs')
+const { tmpdir } = require('node:os')
+const { join } = require('node:path')
 
 /**
  * Exercise the scheduled-posting path with a fake Weibo publish endpoint and a
  * fake model, so we catch wiring mistakes without publishing anything.
  */
 async function main() {
-  const { publishPost } = await import('../lib/core.js')
+  process.env.OPENCODE_WEIBO_HOME = mkdtempSync(join(tmpdir(), 'foxy-weibo-post-'))
+  const { publishPost, createService } = await import('../lib/core.js')
   const { cleanGeneratedPost, generatePostText } = await import('../lib/judge.js')
+  const { loadState } = await import('../lib/state.js')
 
   assert.equal(cleanGeneratedPost('```text\n正文\n```'), '正文')
   assert.equal(cleanGeneratedPost('微博正文：今天天气不错'), '今天天气不错')
@@ -15,7 +20,8 @@ async function main() {
   const generated = await generatePostText(
     { persona: '' },
     '整理24小时以内全球新闻TOP10',
-    async ({ user }) => {
+    async ({ system, user }) => {
+      assert.match(system, /不是要发布的正文/)
       assert.match(user, /整理24小时以内全球新闻TOP10/)
       return '1. 新闻 A\n2. 新闻 B'
     },
@@ -40,6 +46,7 @@ async function main() {
   }
   const runtime = {
     complete: async () => '1. 新闻 A\n2. 新闻 B',
+    log: () => {},
   }
 
   const result = await publishPost(config, state, runtime)
@@ -53,6 +60,15 @@ async function main() {
   assert.equal(state.history[0].action, 'posted')
   assert.equal(requests.length, 1)
   assert.match(requests[0].body, /content=/)
+
+  const serviceState = loadState()
+  const service = createService({ config, state: serviceState, runtime })
+  const first = await service.postNow({ slot: '2026-11-21 08:00' })
+  assert.equal(first.posted, 1, 'first scheduled post publishes')
+  const duplicate = await service.postNow({ slot: '2026-11-21 08:00' })
+  assert.equal(duplicate.skipped, 'already-posted', 'same slot is not posted twice')
+  const next = await service.postNow({ slot: '2026-11-22 08:00' })
+  assert.equal(next.posted, 1, 'the next day still posts')
 
   const missingPrompt = await publishPost({ ...config, postPrompt: '' }, state, runtime)
   assert.match(missingPrompt.error, /关键词/)
