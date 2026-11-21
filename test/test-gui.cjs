@@ -305,6 +305,12 @@ async function main() {
   modelSelect.value = 'deepseek/deepseek-flash'
   modelSelect.listeners.change?.({ target: modelSelect })
   node.listeners.change?.({ target: modelSelect })
+  const timeInput = node.find((item) => item.tagName === 'INPUT' && item.attributes.type === 'time')
+  assert.ok(timeInput, 'post time picker rendered')
+  assert.equal(timeInput.value, '08:00')
+  timeInput.value = '09:30'
+  timeInput.listeners.change?.({ target: timeInput })
+  node.listeners.change?.({ target: timeInput })
   const postPrompt = node.find(
     (item) => item.tagName === 'TEXTAREA' && item.attributes.placeholder === '整理24小时以内全球新闻TOP10',
   )
@@ -322,6 +328,7 @@ async function main() {
     'post prompt is saved',
   )
   assert.equal(autoSave[1].patch.postEnabled, true, 'post toggle is saved')
+  assert.equal(autoSave[1].patch.postTimes, '09:30', 'picked post time is saved automatically')
 
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
