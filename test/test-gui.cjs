@@ -150,6 +150,7 @@ async function main() {
     postEnabled: true,
     postTimes: ['08:00'],
     postPrompt: '整理24小时以内全球新闻TOP10',
+    postSearch: true,
     replyMode: 'off',
     replyAfter: '',
     replyNested: true,

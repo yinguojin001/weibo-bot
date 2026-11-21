@@ -45,7 +45,15 @@ async function main() {
     persona: '',
   }
   const runtime = {
-    complete: async () => '1. 新闻 A\n2. 新闻 B',
+    complete: async ({ user }) => {
+      assert.match(user, /参考资料/)
+      assert.match(user, /搜索到的新闻标题/)
+      return '1. 新闻 A\n2. 新闻 B'
+    },
+    search: async (query) => {
+      assert.match(query, /整理24小时以内全球新闻TOP10/)
+      return [{ title: '搜索到的新闻标题', content: '搜索到的新闻内容' }]
+    },
     log: () => {},
   }
 
