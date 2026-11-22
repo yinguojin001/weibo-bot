@@ -263,6 +263,10 @@ async function main() {
     node.find((item) => item.tagName === 'INPUT' && item.value === '1234567'),
     'target UID input is filled',
   )
+  const initialTime = node.find((item) => item.tagName === 'INPUT' && item.attributes.type === 'time')
+  assert.ok(initialTime, 'time picker rendered before any save')
+  assert.equal(initialTime.value, '08:00', 'time picker shows the saved time on first load')
+
   for (const label of ['保存设置', '扫码登录', '立即检查博文']) {
     const button = node.find((item) => item.tagName === 'BUTTON' && item.text() === label)
     assert.ok(button, `${label} button rendered`)
