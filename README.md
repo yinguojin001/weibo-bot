@@ -149,7 +149,7 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 
 - `dmEnabled`：是否启用；
 - `dmTimes`：每日发送时间（时间选择器，选中即保存）；
-- `dmTargets`：勾选的互关好友 UID，逗号分隔；
+- `dmTargets`：勾选的互关好友 UID，逗号分隔；好友列表可按昵称或 UID 搜索过滤；
 - `dmMessage`：私信内容，300 字以内；所有选中好友发送同一内容。
 
 好友列表来自 `GET /ajax/friendships/friends?page=N`，只保留 `following && follow_me` 的互相关注，最多读取前 8 页（约 100+ 人）。发送调用 `weibo.com/aj/message/add`，失败时回退 `m.weibo.cn/api/chat/send`；每个好友之间间隔 1.2 秒，避免请求过快。

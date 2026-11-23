@@ -340,6 +340,17 @@ async function main() {
   assert.ok(loadFriendsButton, 'friends load button rendered')
   loadFriendsButton.listeners.click()
   await new Promise((resolve) => setTimeout(resolve, 0))
+  const friendSearch = node.find(
+    (item) => item.tagName === 'INPUT' && item.attributes.placeholder === '搜索昵称或 UID',
+  )
+  assert.ok(friendSearch, 'friend search box rendered')
+  friendSearch.value = 'zzz'
+  friendSearch.listeners.input?.({ target: friendSearch })
+  assert.match(node.text(), /没有匹配的好友/)
+  friendSearch.value = ''
+  friendSearch.listeners.input?.({ target: friendSearch })
+  assert.match(node.text(), /好友A/, 'clearing the search restores the list')
+
   const friendLabel = node.find((item) => item.tagName === 'LABEL' && item.text().includes('好友A'))
   assert.ok(friendLabel, 'mutual friend rendered after loading')
   const friendBox = friendLabel.find((item) => item.tagName === 'INPUT')
