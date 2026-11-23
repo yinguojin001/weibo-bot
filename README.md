@@ -19,6 +19,7 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 - **状态锁**：同一数据目录下多个 OpenCode 实例不会同时扫描并互相覆盖 `state.json`；
 - **快速提取记忆**：读取全部往期博文，按自然周/月/年分组，每组整合为一条阶段记忆；
 - **定时发博**：按每日时间让模型根据「发博关键词 / 要求」生成正文并发布一条新微博（例如每天早上 8 点整理 24 小时内新闻 TOP10）；
+- **定时私信**：按每日时间给选中的互关好友发送同一条自定义私信；
 - **Desktop 设置页**：扫码登录、Cookie 备用、监控账号 UID、模型、每日时间、评论模式、定时发博、记忆开关、调试日志，以及「立即检查 / 立即读取 / 立即回复 / 立即发博」。
 
 ## 安装
@@ -76,10 +77,11 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 | `weibo_comment` | 对博文发表一级评论（会请求权限） |
 | `weibo_reply` | 回复 Foxy 评论下的楼中楼（会请求权限） |
 | `weibo_post` | 按发博关键词生成并发布一条微博（会请求权限） |
+| `weibo_dm` | 给互关好友发送私信（会请求权限） |
 | `weibo_extract` | 后台执行全量记忆提取 |
 | `weibo_memory` | 搜索插件写入的微博记忆 |
 
-`weibo_comment` 和 `weibo_reply` 在真实发布前会调用 `ctx.permission.assert`，权限动作是 `weibo.comment`；`weibo_post` 的权限动作是 `weibo.post`。
+`weibo_comment` 和 `weibo_reply` 在真实发布前会调用 `ctx.permission.assert`，权限动作是 `weibo.comment`；`weibo_post` 的权限动作是 `weibo.post`，`weibo_dm` 是 `weibo.dm`。
 
 ## AI 模型
 
@@ -140,6 +142,19 @@ Foxy 的微博插件：关注一个微博账号，阅读博文、判断是否评
 - 后台服务由 launchd 托管（`opencode-cli serve --service`），关闭 Desktop 窗口不影响它。
 
 如果希望“错过超过一段时间就不补发”，可以再加一个补发窗口，目前是唤醒后直接补发。
+
+## 定时私信
+
+设置页的「定时私信」卡片：
+
+- `dmEnabled`：是否启用；
+- `dmTimes`：每日发送时间（时间选择器，选中即保存）；
+- `dmTargets`：勾选的互关好友 UID，逗号分隔；
+- `dmMessage`：私信内容，300 字以内；所有选中好友发送同一内容。
+
+好友列表来自 `GET /ajax/friendships/friends?page=N`，只保留 `following && follow_me` 的互相关注，最多读取前 8 页（约 100+ 人）。发送调用 `weibo.com/aj/message/add`，失败时回退 `m.weibo.cn/api/chat/send`；每个好友之间间隔 1.2 秒，避免请求过快。
+
+同一个「日期 + 时间」只会发送一次（`state.lastDm.slot`），多个插件实例不会重复私信。微博要求对方是你的粉丝才能收到私信；如果失败，设置页会显示具体原因。
 
 ## 扫码登录
 

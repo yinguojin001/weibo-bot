@@ -9,7 +9,7 @@ const { join } = require('node:path')
  */
 async function main() {
   process.env.OPENCODE_WEIBO_HOME = mkdtempSync(join(tmpdir(), 'foxy-weibo-post-'))
-  const { publishPost, createService } = await import('../lib/core.js')
+  const { publishPost, createService, sendDirectMessages } = await import('../lib/core.js')
   const { cleanGeneratedPost, generatePostText, judgePost, optimizePostPrompt } = await import('../lib/judge.js')
   const { loadState } = await import('../lib/state.js')
 
@@ -45,6 +45,9 @@ async function main() {
     requests.push({ target, body: String(options.body || '') })
     if (target.includes('weibo.com/ajax/statuses/update')) {
       return new Response(JSON.stringify({ ok: 1, msg: '发布成功', data: { id: 'w1' } }), { status: 200 })
+    }
+    if (target.includes('weibo.com/aj/message/add')) {
+      return new Response(JSON.stringify({ code: '100000', data: { id: 'dm1' } }), { status: 200 })
     }
     throw new Error(`unexpected fetch ${target}`)
   }
@@ -155,6 +158,26 @@ async function main() {
   assert.match(seenCommentPrompt, /幽默风趣/)
   assert.match(seenCommentPrompt, /最多 60 字/)
   assert.equal(judged.comment.length, 60, 'comments are capped at 60 characters')
+
+  const dmConfig = {
+    cookie: 'SUB=x; XSRF-TOKEN=t',
+    dmMessage: '降温了，记得添衣',
+    dmTargets: '111, 222',
+  }
+  const dmState = { history: [], lastDm: null }
+  const dmRuntime = { sleep: async () => {}, log: () => {} }
+  const dmResult = await sendDirectMessages(dmConfig, dmState, dmRuntime)
+  assert.equal(dmResult.sent, 2)
+  assert.equal(dmResult.failed, 0)
+  assert.equal(dmResult.targets, 2)
+  assert.equal(dmState.history.filter((item) => item.kind === 'weibo-dm' && item.action === 'sent').length, 2)
+
+  const dmServiceState = loadState()
+  const dmService = createService({ config: dmConfig, state: dmServiceState, runtime: dmRuntime })
+  const firstDm = await dmService.dmNow({ slot: '2026-11-24 09:00' })
+  assert.equal(firstDm.sent, 2, 'scheduled dm is sent to every target')
+  const duplicateDm = await dmService.dmNow({ slot: '2026-11-24 09:00' })
+  assert.equal(duplicateDm.skipped, 'already-sent', 'same dm slot is not sent twice')
 
   console.log('foxy-weibo post tests passed')
 }

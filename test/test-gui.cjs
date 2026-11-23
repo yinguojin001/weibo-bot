@@ -152,6 +152,10 @@ async function main() {
     postPrompt: '整理24小时以内全球新闻TOP10',
     postSearch: true,
     postOptimize: true,
+    dmEnabled: false,
+    dmTimes: ['09:00'],
+    dmTargets: '',
+    dmMessage: '',
     replyMode: 'off',
     replyAfter: '',
     replyNested: true,
@@ -185,6 +189,8 @@ async function main() {
     extracting: false,
     nextPostAt: Date.now() + 3600_000,
     lastPost: null,
+    nextDmAt: Date.now() + 7200_000,
+    lastDm: null,
   }
   const client = {
     rpc(contract) {
@@ -202,6 +208,11 @@ async function main() {
             ok: true,
             models: [{ id: 'deepseek/deepseek-flash', name: 'DeepSeek V4.1 Flash', provider: 'deepseek' }],
           }
+        },
+        friends: async (input) => {
+          calls.push(['friends', input])
+          assert.deepEqual(input, {}, 'friends must pass an input object')
+          return { ok: true, friends: [{ uid: '999', name: '好友A' }] }
         },
         update: async (input) => {
           calls.push(['update', input])
@@ -245,7 +256,7 @@ async function main() {
   const page = added[0].item
   assert.equal(page.id, 'foxy-weibo')
   assert.equal(page.title, '微博')
-  assert.equal(page.entries.length, 5)
+  assert.equal(page.entries.length, 6)
   assert.equal(page.entries[0].id, 'account')
 
   const node = page.render({})
@@ -323,6 +334,18 @@ async function main() {
   postPrompt.value = '整理24小时以内全球新闻TOP10，每条一句话'
   postPrompt.listeners.input?.({ target: postPrompt })
   node.listeners.input?.({ target: postPrompt })
+  const loadFriendsButton = node.find(
+    (item) => item.tagName === 'BUTTON' && item.text() === '加载互关好友',
+  )
+  assert.ok(loadFriendsButton, 'friends load button rendered')
+  loadFriendsButton.listeners.click()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const friendLabel = node.find((item) => item.tagName === 'LABEL' && item.text().includes('好友A'))
+  assert.ok(friendLabel, 'mutual friend rendered after loading')
+  const friendBox = friendLabel.find((item) => item.tagName === 'INPUT')
+  friendBox.checked = true
+  friendBox.listeners.change?.({ target: friendBox })
+  node.listeners.change?.({ target: friendBox })
   await new Promise((resolve) => setTimeout(resolve, 700))
   const autoSave = calls.filter((call) => call[0] === 'update').at(-1)
   assert.equal(autoSave[1].patch.extractUnit, 'year', 'changes are saved without pressing the button')
@@ -335,6 +358,7 @@ async function main() {
   assert.equal(autoSave[1].patch.postEnabled, true, 'post toggle is saved')
   assert.equal(autoSave[1].patch.postTimes, '09:30', 'picked post time is saved automatically')
   assert.equal(autoSave[1].patch.postOptimize, true, 'auto prompt optimization is saved')
+  assert.equal(autoSave[1].patch.dmTargets, '999', 'selected mutual friend is saved')
 
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
@@ -347,6 +371,14 @@ async function main() {
   assert.ok(checkButton, 'check button rendered')
   await checkButton.listeners.click()
   assert.deepEqual(calls.find((call) => call[0] === 'run')[1], { mode: 'check' })
+
+  const dmButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '立即私信')[0]
+  assert.ok(dmButton, 'dm button rendered')
+  await dmButton.listeners.click()
+  assert.deepEqual(
+    calls.find((call) => call[0] === 'run' && call[1].mode === 'dm')[1],
+    { mode: 'dm' },
+  )
 
   const postButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '立即发博')[0]
   assert.ok(postButton, 'post button rendered')

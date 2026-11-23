@@ -29,6 +29,11 @@ async function main() {
     settings.normalizePatch({}, { postPrompt: '  整理新闻  ' }).postPrompt,
     '整理新闻',
   )
+  assert.equal(settings.normalizePatch({}, {}).dmEnabled, false)
+  assert.equal(settings.normalizePatch({}, { dmEnabled: true }).dmEnabled, true)
+  assert.deepEqual(settings.normalizePatch({}, { dmTimes: '09:00, 21:00' }).dmTimes, ['09:00', '21:00'])
+  assert.equal(settings.normalizePatch({}, { dmMessage: '  降温了  ' }).dmMessage, '降温了')
+  assert.equal(settings.normalizePatch({}, { dmTargets: ' 111, 222 ' }).dmTargets, '111, 222')
 
   const saved = settings.saveSettings({
     ...settings.DEFAULTS,
