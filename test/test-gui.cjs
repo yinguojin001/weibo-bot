@@ -151,6 +151,7 @@ async function main() {
     postTimes: ['08:00'],
     postPrompt: '整理24小时以内全球新闻TOP10',
     postSearch: true,
+    postOptimize: true,
     replyMode: 'off',
     replyAfter: '',
     replyNested: true,
@@ -333,6 +334,7 @@ async function main() {
   )
   assert.equal(autoSave[1].patch.postEnabled, true, 'post toggle is saved')
   assert.equal(autoSave[1].patch.postTimes, '09:30', 'picked post time is saved automatically')
+  assert.equal(autoSave[1].patch.postOptimize, true, 'auto prompt optimization is saved')
 
   const loginButton = node.findAll((item) => item.tagName === 'BUTTON' && item.text() === '扫码登录')[0]
   assert.ok(loginButton, 'login button rendered')
