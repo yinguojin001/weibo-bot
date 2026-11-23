@@ -21,12 +21,13 @@ async function main() {
     { persona: '' },
     '整理24小时以内全球新闻TOP10',
     async ({ system, user }) => {
-      assert.match(system, /不是要发布的正文/)
+      assert.match(system, /写作指令/)
+      assert.match(system, /输出格式/)
       assert.match(user, /整理24小时以内全球新闻TOP10/)
-      return '1. 新闻 A\n2. 新闻 B'
+      return '【早报 · 11月23日】\n1. 新闻 A（待核实）\n2. 新闻 B｜据公开资料显示\n#每日新闻#'
     },
   )
-  assert.equal(generated, '1. 新闻 A\n2. 新闻 B')
+  assert.equal(generated, '【早报 · 11月23日】\n1. 新闻 A\n2. 新闻 B\n#每日新闻#')
 
   const requests = []
   globalThis.fetch = async (url, options = {}) => {
