@@ -10,7 +10,7 @@ const { join } = require('node:path')
 async function main() {
   process.env.OPENCODE_WEIBO_HOME = mkdtempSync(join(tmpdir(), 'foxy-weibo-post-'))
   const { publishPost, createService } = await import('../lib/core.js')
-  const { cleanGeneratedPost, generatePostText, optimizePostPrompt } = await import('../lib/judge.js')
+  const { cleanGeneratedPost, generatePostText, judgePost, optimizePostPrompt } = await import('../lib/judge.js')
   const { loadState } = await import('../lib/state.js')
 
   assert.equal(cleanGeneratedPost('```text\n正文\n```'), '正文')
@@ -128,6 +128,33 @@ async function main() {
   assert.match(missingPrompt.error, /关键词/)
   const noCookie = await publishPost({ ...config, cookie: '' }, state, runtime)
   assert.match(noCookie.error, /登录/)
+
+  let seenCommentPrompt = ''
+  const judged = await judgePost(
+    { persona: '' },
+    {
+      summary: '博主：主人\n正文：今天去看海了',
+      comments: [],
+      commentsText: '',
+      targetPost: { id: 'p1', text: '今天去看海了', author: { name: '主人' }, url: '' },
+      memoryContext: '',
+      mayComment: true,
+      mayReply: false,
+      forceComment: true,
+    },
+    async ({ user }) => {
+      seenCommentPrompt = user
+      return JSON.stringify({
+        action: 'comment',
+        comment: '海风这么大，你的发型还好吗？'.repeat(10),
+        memory: '',
+        replyTo: 0,
+      })
+    },
+  )
+  assert.match(seenCommentPrompt, /幽默风趣/)
+  assert.match(seenCommentPrompt, /最多 60 字/)
+  assert.equal(judged.comment.length, 60, 'comments are capped at 60 characters')
 
   console.log('foxy-weibo post tests passed')
 }
