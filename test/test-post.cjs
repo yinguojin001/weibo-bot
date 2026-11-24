@@ -179,6 +179,39 @@ async function main() {
   const duplicateDm = await dmService.dmNow({ slot: '2026-11-24 09:00' })
   assert.equal(duplicateDm.skipped, 'already-sent', 'same dm slot is not sent twice')
 
+  // A generation timeout is retried for the same slot, then recorded.
+  let failOnce = true
+  const retryConfig = {
+    cookie: 'SUB=x; XSRF-TOKEN=t',
+    postPrompt: '整理24小时以内全球新闻TOP10',
+    postOptimize: false,
+    postSearch: false,
+  }
+  const retryRuntime = {
+    complete: async () => {
+      if (failOnce) {
+        failOnce = false
+        throw new Error('模型调用超时（120 秒）')
+      }
+      return '【早报】\n1. 新闻 A'
+    },
+    search: async () => [],
+    log: () => {},
+  }
+  const retryService = createService({
+    config: retryConfig,
+    state: loadState(),
+    runtime: retryRuntime,
+  })
+  const failed = await retryService.postNow({ slot: '2026-11-26 08:03' })
+  assert.equal(failed.stage, 'generate')
+  assert.equal(failed.attempts, 1)
+  const retried = await retryService.postNow({ slot: '2026-11-26 08:03' })
+  assert.equal(retried.posted, 1, 'a generation timeout is retried for the same slot')
+  assert.equal(retried.attempts, 2)
+  const finished = await retryService.postNow({ slot: '2026-11-26 08:03' })
+  assert.equal(finished.skipped, 'already-posted')
+
   console.log('foxy-weibo post tests passed')
 }
 
